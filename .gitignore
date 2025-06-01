@@ -1,0 +1,30 @@
+*.o
+*.out
+*.exe
+*.obj
+*.gch
+
+
+/build/
+/bin/
+/dist/
+
+
+*.log
+*.tmp
+*.swp
+*.bak
+*.dSYM/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# system files
+.DS_Store
+Thumbs.db
+
+# VS Code settings
+.vscode/
