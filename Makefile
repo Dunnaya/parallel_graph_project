@@ -3,7 +3,7 @@ CXX = g++
 CXXFLAGS = -std=c++17 -pthread -O2 -Wall -Wextra
 INCLUDES = -I./include
 SRCDIR = src
-SOURCES = $(SRCDIR)/parallel_graph.cpp
+SOURCES = $(SRCDIR)/parallel_graph.cpp $(SRCDIR)/graph.cpp
 TARGET = parallel_graph
 
 $(TARGET): $(SOURCES)

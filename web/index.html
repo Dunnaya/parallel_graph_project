@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Algorithms on graphs</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 20px; 
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+    
+    label { 
+      display: block; 
+      margin-top: 15px;
+      font-weight: bold;
+      color: #555;
+    }
+    input { 
+      max-width: 960px;
+      width: 98%; 
+      padding: 10px; 
+      margin-top: 5px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    select { 
+      width: 100%;
+      padding: 10px; 
+      margin-top: 5px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    button { 
+      width: 100%;
+      margin-top: 20px; 
+      padding: 12px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background-color: #0056b3;
+    }
+    
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .result-section {
+      margin-top: 30px;
+    }
+    
+    pre { 
+      background: #f8f9fa; 
+      padding: 15px; 
+      white-space: pre-wrap;
+      border: 1px solid #e9ecef;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .error {
+      color: #dc3545;
+      background-color: #f8d7da;
+      border-color: #f5c6cb;
+    }
+    
+    .loading {
+      color: #007bff;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Graph Algorithms</h1>
+
+  <form id="graphForm">
+    <label>Number of vertices:
+      <input type="number" id="num_vert" value="5" min="1" max="100" required />
+    </label>
+
+    <label>Number of edges:
+      <input type="number" id="num_edges" value="7" min="0" required />
+    </label>
+
+    <label>Maximum edge weight:
+      <input type="number" id="max_weight" value="10" min="1" max="1000" required />
+    </label>
+
+    <label>Directed graph:
+      <select id="is_directed">
+        <option value="false" selected>No</option>
+        <option value="true">Yes</option>
+      </select>
+    </label>
+
+    <label>Graph type: (for more than 20 vertices, adjacency list is recommended)
+      <select id="graph_type">
+        <option value="0" selected>Adjacency matrix</option>
+        <option value="1">Adjacency list</option>
+      </select>
+    </label>
+
+    <button type="submit" id="generateBtn">Generate Graph</button>
+  </form>
+
+  <div class="result-section">
+    <h2>Result:</h2>
+    <pre id="output">Press the button to generate new graph</pre>
+  </div>
+</div>
+
+<script>
+function calculateMaxEdges() {
+  const numVert = parseInt(document.getElementById('num_vert').value) || 0;
+  const isDirected = document.getElementById('is_directed').value === 'true';
+  
+  if (numVert <= 1) return 0;
+  
+  return isDirected ? numVert * (numVert - 1) : numVert * (numVert - 1) / 2;
+}
+
+function updateMaxEdges() {
+  const maxEdges = calculateMaxEdges();
+  const edgesInput = document.getElementById('num_edges');
+  edgesInput.max = maxEdges;
+  
+  if (parseInt(edgesInput.value) > maxEdges) {
+    edgesInput.value = maxEdges;
+  }
+}
+
+document.getElementById('num_vert').addEventListener('input', updateMaxEdges);
+document.getElementById('is_directed').addEventListener('change', updateMaxEdges);
+
+document.getElementById('graphForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const num_vert = parseInt(document.getElementById('num_vert').value);
+  const num_edges = parseInt(document.getElementById('num_edges').value);
+  const max_weight = parseInt(document.getElementById('max_weight').value);
+  const is_directed = document.getElementById('is_directed').value === 'true';
+  const graph_type = parseInt(document.getElementById('graph_type').value);
+
+  const maxPossibleEdges = calculateMaxEdges();
+  if (num_edges > maxPossibleEdges) {
+    const output = document.getElementById('output');
+    output.className = 'error';
+    output.textContent = `Error: Maximum number of edges for ${is_directed ? 'directed' : 'undirected'} graph with ${num_vert} vertices: ${maxPossibleEdges}`;
+    return;
+  }
+
+  const requestBody = {
+    num_vert,
+    num_edges,
+    max_weight,
+    is_directed,
+    graph_type
+  };
+
+  const output = document.getElementById('output');
+  const generateBtn = document.getElementById('generateBtn');
+  
+  output.className = 'loading';
+  output.textContent = 'Generating graph...';
+  generateBtn.disabled = true;
+  generateBtn.textContent = 'Generating...';
+
+  try {
+    const response = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      output.className = 'error';
+      output.textContent = `Server error: ${errorText}`;
+      return;
+    }
+
+    const data = await response.json();
+    output.className = '';
+
+    if (graph_type === 0 && data.matrix) {
+      let result = `Adjacency matrix (${is_directed ? 'directed' : 'undirected'} graph):\n`;
+      result += `Vertices: ${num_vert}, Edges: ${num_edges}, Max weight: ${max_weight}\n\n`;
+      
+      result += '   ';
+      for (let i = 0; i < num_vert; i++) {
+        result += `${i}`.padStart(4);
+      }
+      result += '\n';
+      
+      for (let i = 0; i < data.matrix.length; i++) {
+        result += `${i}`.padStart(2) + ' ';
+        for (const val of data.matrix[i]) {
+          const displayVal = val === null ? '-' : val.toString();
+          result += displayVal.padStart(4);
+        }
+        result += '\n';
+      }
+      output.textContent = result;
+    } else if (graph_type === 1 && data.adjList) {
+      let result = `Adjacency list (${is_directed ? 'directed' : 'undirected'} graph):\n`;
+      result += `Vertices: ${num_vert}, Edges: ${num_edges}, Max weight: ${max_weight}\n\n`;
+
+      data.adjList.forEach((adj, i) => {
+        result += `Vertex ${i}: `;
+        if (adj.length === 0) {
+          result += '(no neighbors)';
+        } else {
+          const edges = adj.map(e => `${e.to}(${e.weight})`).join(', ');
+          result += edges;
+        }
+        result += '\n';
+      });
+      output.textContent = result;
+    } else {
+      output.className = 'error';
+      output.textContent = 'Unexpected data format received.';
+    }
+
+  } catch (err) {
+    output.className = 'error';
+    output.textContent = 'Request error: ' + err.message;
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.textContent = 'Generate Graph';
+  }
+});
+
+updateMaxEdges();
+</script>
+
+</body>
+</html>
