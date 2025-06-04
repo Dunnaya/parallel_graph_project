@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Algorithms on graphs</title>
+  <title>Graph Algorithms Demo</title>
   <style>
     body { 
       font-family: Arial, sans-serif; 
       margin: 20px; 
-      background-color: #f5f5f5;
+      
+      background: linear-gradient(to right, #b0cbfe, #c095f2);
     }
     
     .container {
-      max-width: 1000px;
+      max-width: 1200px;
       margin: 0 auto;
       background: white;
       padding: 20px;
@@ -20,9 +21,39 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     
-    h1 {
+    h1, h2 {
       color: #333;
       text-align: center;
+    }
+    
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #ddd;
+    }
+    
+    .tab {
+      padding: 12px 24px;
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-bottom: none;
+      cursor: pointer;
+      margin-right: 5px;
+      border-radius: 5px 5px 0 0;
+    }
+    
+    .tab.active {
+      background: white;
+      border-bottom: 2px solid white;
+      margin-bottom: -2px;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
     }
     
     label { 
@@ -31,9 +62,8 @@
       font-weight: bold;
       color: #555;
     }
-    input { 
-      max-width: 960px;
-      width: 98%; 
+    
+    input, select, textarea {
       padding: 10px; 
       margin-top: 5px;
       border: 1px solid #ddd;
@@ -41,20 +71,24 @@
       font-size: 14px;
     }
 
-    select { 
-      width: 100%;
-      padding: 10px; 
-      margin-top: 5px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      font-size: 14px;
+    input {
+      width: 98%;
+    }
+
+    select, textarea {
+      width: 100%; 
+    }
+    
+    textarea {
+      resize: vertical;
+      font-family: monospace;
     }
     
     button { 
       width: 100%;
       margin-top: 20px; 
       padding: 12px 20px;
-      background-color: #007bff;
+      background-color: #7741ff;
       color: white;
       border: none;
       border-radius: 5px;
@@ -63,7 +97,7 @@
     }
     
     button:hover {
-      background-color: #0056b3;
+      background-color: #462dd5;
     }
     
     button:disabled {
@@ -82,8 +116,9 @@
       border: 1px solid #e9ecef;
       border-radius: 4px;
       font-family: 'Courier New', monospace;
-      max-height: 400px;
+      max-height: 500px;
       overflow-y: auto;
+      margin-bottom: 20px;
     }
     
     .error {
@@ -95,172 +130,786 @@
     .loading {
       color: #007bff;
     }
+    
+    .algorithm-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    
+    .algorithm-buttons button {
+      width: auto;
+      flex: 1;
+      margin-top: 0;
+    }
+    
+    .custom-edges {
+      margin-top: 15px;
+    }
+    
+    .edge-input {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .edge-input input {
+      width: 80px;
+      margin-top: 0;
+    }
+    
+    .edge-input button {
+      width: auto;
+      margin-top: 0;
+      padding: 8px 12px;
+      background-color: #dc3545;
+    }
+    
+    .add-edge-btn {
+      background-color: #28a745;
+      width: auto;
+      padding: 8px 16px;
+      margin-top: 10px;
+    }
+
+    .benchmark-panel {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin: 20px 0;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .benchmark-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .benchmark-item {
+      background: rgba(255,255,255,0.1);
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      backdrop-filter: blur(5px);
+    }
+
+    .benchmark-value {
+      font-size: 1.5em;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .benchmark-label {
+      font-size: 0.9em;
+      opacity: 0.9;
+    }
+
+    .performance-chart {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+      color: #333;
+    }
+
+    .chart-bar {
+      display: flex;
+      align-items: center;
+      margin: 10px 0;
+    }
+
+    .chart-label {
+      width: 120px;
+      font-weight: bold;
+      font-size: 0.9em;
+    }
+
+    .chart-bar-fill {
+      height: 20px;
+      background: linear-gradient(90deg, #28a745, #20c6c9);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      color: white;
+      font-size: 0.8em;
+      font-weight: bold;
+      min-width: 60px;
+      justify-content: center;
+    }
+
+    .timing-display {
+      display: inline-block;
+      background: #e3f2fd;
+      color: #1976d2;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.9em;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    .algorithm-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 15px;
+    }
+
+    .complexity-badge {
+      background: #ff6b6b;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
+  <div class="container">
+    <h1>Graph Algorithms Demo</h1>
 
-<div class="container">
-  <h1>Graph Algorithms</h1>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('random')">Random Graph</div>
+      <div class="tab" onclick="switchTab('custom')">Custom Graph</div>
+    </div>
 
-  <form id="graphForm">
-    <label>Number of vertices:
-      <input type="number" id="num_vert" value="5" min="1" max="100" required />
-    </label>
+    <!-- Random Graph -->
+    <div id="random" class="tab-content active">
+      <form id="randomGraphForm">
+        <label>Number of vertices:
+          <input type="number" id="num_vert" value="5" min="1" max="100" required />
+        </label>
 
-    <label>Number of edges:
-      <input type="number" id="num_edges" value="7" min="0" required />
-    </label>
+        <label>Number of edges:
+          <input type="number" id="num_edges" value="7" min="0" required />
+        </label>
 
-    <label>Maximum edge weight:
-      <input type="number" id="max_weight" value="10" min="1" max="1000" required />
-    </label>
+        <label>Maximum edge weight:
+          <input type="number" id="max_weight" value="9" min="1" max="1000" required />
+        </label>
 
-    <label>Directed graph:
-      <select id="is_directed">
-        <option value="false" selected>No</option>
-        <option value="true">Yes</option>
-      </select>
-    </label>
+        <label>Directed graph:
+          <select id="is_directed">
+            <option value="false" selected>No</option>
+            <option value="true">Yes</option>
+          </select>
+        </label>
 
-    <label>Graph type: (for more than 20 vertices, adjacency list is recommended)
-      <select id="graph_type">
-        <option value="0" selected>Adjacency matrix</option>
-        <option value="1">Adjacency list</option>
-      </select>
-    </label>
+        <label>Graph type:
+          <select id="graph_type">
+            <option value="0" selected>Adjacency matrix</option>
+            <option value="1">Adjacency list</option>
+          </select>
+        </label>
 
-    <button type="submit" id="generateBtn">Generate Graph</button>
-  </form>
+        <button type="submit" id="generateBtn">Generate Random Graph</button>
+      </form>
+    </div>
 
-  <div class="result-section">
-    <h2>Result:</h2>
-    <pre id="output">Press the button to generate new graph</pre>
+    <!-- Custom Graph -->
+    <div id="custom" class="tab-content">
+      <form id="customGraphForm">
+        <label>Number of vertices:
+          <input type="number" id="custom_num_vert" value="4" min="1" max="20" required />
+        </label>
+
+        <label>Directed graph:
+          <select id="custom_is_directed">
+            <option value="false" selected>No</option>
+            <option value="true">Yes</option>
+          </select>
+        </label>
+
+        <label>Graph type:
+          <select id="custom_graph_type">
+            <option value="0" selected>Adjacency matrix</option>
+            <option value="1">Adjacency list</option>
+          </select>
+        </label>
+
+        <div class="custom-edges">
+          <h3>Edges: (from, to, weight)</h3>
+          <div id="edgesList"></div>
+          <button type="button" class="add-edge-btn" onclick="addEdgeInput()">Add Edge</button>
+        </div>
+
+        <button type="submit" id="createCustomBtn">Create Custom Graph</button>
+      </form>
+    </div>
+
+    <div class="result-section">
+      <h2>Graph:</h2>
+      <pre id="graphOutput">Generate or create a graph to see it here</pre>
+      
+      <div class="algorithm-buttons" id="algorithmButtons" style="display: none;">
+        <button onclick="runFloyd()" id="floydBtn">Run Floyd-Warshall</button>
+        <button onclick="runKruskal()" id="kruskalBtn">Run Kruskal's MST</button>
+      </div>
+      
+      <div id="algorithmResults" style="display: none;">
+        <div class="algorithm-header">
+          <h2>Algorithm Results:</h2>
+          <div id="algorithmComplexity"></div>
+        </div>
+        
+        <div id="benchmarkPanel" class="benchmark-panel" style="display: none;">
+          <h3 style="margin-top: 0;">Benchmark</h3>
+          <div class="benchmark-grid" id="benchmarkGrid"></div>
+          <div id="performanceChart" class="performance-chart" style="display: none;"></div>
+        </div>
+        
+        <pre id="algorithmOutput"></pre>
+      </div>
+    </div>
   </div>
-</div>
 
-<script>
-function calculateMaxEdges() {
-  const numVert = parseInt(document.getElementById('num_vert').value) || 0;
-  const isDirected = document.getElementById('is_directed').value === 'true';
-  
-  if (numVert <= 1) return 0;
-  
-  return isDirected ? numVert * (numVert - 1) : numVert * (numVert - 1) / 2;
-}
+  <script>
+    let currentGraphData = null;
+    let benchmarkHistory = [];
 
-function updateMaxEdges() {
-  const maxEdges = calculateMaxEdges();
-  const edgesInput = document.getElementById('num_edges');
-  edgesInput.max = maxEdges;
-  
-  if (parseInt(edgesInput.value) > maxEdges) {
-    edgesInput.value = maxEdges;
-  }
-}
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      
+      document.getElementById(tabName).classList.add('active');
+      event.target.classList.add('active');
+      
+      clearResults();
+    }
 
-document.getElementById('num_vert').addEventListener('input', updateMaxEdges);
-document.getElementById('is_directed').addEventListener('change', updateMaxEdges);
+    function clearResults() {
+      document.getElementById('graphOutput').textContent = 'Generate or create a graph to see it here';
+      document.getElementById('algorithmButtons').style.display = 'none';
+      document.getElementById('algorithmResults').style.display = 'none';
+      document.getElementById('benchmarkPanel').style.display = 'none';
+      currentGraphData = null;
+    }
 
-document.getElementById('graphForm').addEventListener('submit', async function(e) {
-  e.preventDefault();
+    function calculateMaxEdges() {
+      const numVert = parseInt(document.getElementById('num_vert').value) || 0;
+      const isDirected = document.getElementById('is_directed').value === 'true';
+      
+      if (numVert <= 1) return 0;
+      
+      return isDirected ? numVert * (numVert - 1) : numVert * (numVert - 1) / 2;
+    }
 
-  const num_vert = parseInt(document.getElementById('num_vert').value);
-  const num_edges = parseInt(document.getElementById('num_edges').value);
-  const max_weight = parseInt(document.getElementById('max_weight').value);
-  const is_directed = document.getElementById('is_directed').value === 'true';
-  const graph_type = parseInt(document.getElementById('graph_type').value);
+    function updateMaxEdges() {
+      const maxEdges = calculateMaxEdges();
+      const edgesInput = document.getElementById('num_edges');
+      edgesInput.max = maxEdges;
+      
+      if (parseInt(edgesInput.value) > maxEdges) {
+        edgesInput.value = maxEdges;
+      }
+    }
 
-  const maxPossibleEdges = calculateMaxEdges();
-  if (num_edges > maxPossibleEdges) {
-    const output = document.getElementById('output');
-    output.className = 'error';
-    output.textContent = `Error: Maximum number of edges for ${is_directed ? 'directed' : 'undirected'} graph with ${num_vert} vertices: ${maxPossibleEdges}`;
-    return;
-  }
+    function addEdgeInput() {
+      const edgesList = document.getElementById('edgesList');
+      const edgeDiv = document.createElement('div');
+      edgeDiv.className = 'edge-input';
+      edgeDiv.innerHTML = `
+        <input type="number" placeholder="From" min="0" required>
+        <input type="number" placeholder="To" min="0" required>
+        <input type="number" placeholder="Weight" min="1" value="1" required>
+        <button type="button" onclick="removeEdgeInput(this)">Remove</button>
+      `;
+      edgesList.appendChild(edgeDiv);
+    }
 
-  const requestBody = {
-    num_vert,
-    num_edges,
-    max_weight,
-    is_directed,
-    graph_type
-  };
+    function removeEdgeInput(button) {
+      button.parentElement.remove();
+    }
 
-  const output = document.getElementById('output');
-  const generateBtn = document.getElementById('generateBtn');
-  
-  output.className = 'loading';
-  output.textContent = 'Generating graph...';
-  generateBtn.disabled = true;
-  generateBtn.textContent = 'Generating...';
+    function getEdgesFromInputs() {
+      const edges = [];
+      const edgeInputs = document.querySelectorAll('.edge-input');
+      
+      edgeInputs.forEach(edgeInput => {
+        const inputs = edgeInput.querySelectorAll('input');
+        const from = parseInt(inputs[0].value);
+        const to = parseInt(inputs[1].value);
+        const weight = parseInt(inputs[2].value);
+        
+        if (!isNaN(from) && !isNaN(to) && !isNaN(weight)) {
+          edges.push({ from, to, weight });
+        }
+      });
+      
+      return edges;
+    }
 
-  try {
-    const response = await fetch('/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+    function formatTime(timeMs) {
+      if (timeMs < 1.0) {
+        return (timeMs * 1000).toFixed(1) + ' μs';
+      } else if (timeMs < 1000.0) {
+        return timeMs.toFixed(3) + ' ms';
+      } else {
+        return (timeMs / 1000.0).toFixed(3) + ' s';
+      }
+    }
+
+    function extractBenchmarkData(resultText) {
+      const lines = resultText.split('\n');
+      const benchmark = {};
+      
+      for (const line of lines) {
+        if (line.includes('Algorithm execution time:')) {
+          const match = line.match(/Algorithm execution time:\s*(.+)/);
+          if (match) benchmark.algorithmTime = match[1].trim();
+        }
+        if (line.includes('Total time (including I/O):')) {
+          const match = line.match(/Total time \(including I\/O\):\s*(.+)/);
+          if (match) benchmark.totalTime = match[1].trim();
+        }
+        if (line.includes('Sorting time:')) {
+          const match = line.match(/Sorting time:\s*(.+)/);
+          if (match) benchmark.sortingTime = match[1].trim();
+        }
+        if (line.includes('Operations performed:')) {
+          const match = line.match(/Operations performed:\s*(.+)/);
+          if (match) benchmark.operations = match[1].trim();
+        }
+        if (line.includes('Operations per second:')) {
+          const match = line.match(/Operations per second:\s*(.+)/);
+          if (match) benchmark.operationsPerSec = match[1].trim();
+        }
+        if (line.includes('Edges processed:')) {
+          const match = line.match(/Edges processed:\s*(.+)/);
+          if (match) benchmark.edgesProcessed = match[1].trim();
+        }
+        if (line.includes('Edges per second:')) {
+          const match = line.match(/Edges per second:\s*(.+)/);
+          if (match) benchmark.edgesPerSec = match[1].trim();
+        }
+      }
+      
+      return benchmark;
+    }
+
+    function displayBenchmark(algorithmName, benchmark, complexity) {
+      const panel = document.getElementById('benchmarkPanel');
+      const grid = document.getElementById('benchmarkGrid');
+      const complexityDiv = document.getElementById('algorithmComplexity');
+      
+      complexityDiv.innerHTML = `<span class="complexity-badge">${complexity}</span>`;
+      
+      grid.innerHTML = '';
+      
+      const items = [];
+      
+      if (benchmark.algorithmTime) {
+        items.push({ label: 'Algorithm Time', value: benchmark.algorithmTime });
+      }
+      
+      if (benchmark.totalTime) {
+        items.push({ label: 'Total Time', value: benchmark.totalTime });
+      }
+      
+      if (benchmark.sortingTime) {
+        items.push({ label: 'Sorting Time', value: benchmark.sortingTime });
+      }
+      
+      if (benchmark.operations) {
+        items.push({ label: 'Operations', value: benchmark.operations });
+      }
+      
+      if (benchmark.operationsPerSec) {
+        items.push({ label: 'Ops/Second', value: benchmark.operationsPerSec });
+      }
+      
+      if (benchmark.edgesProcessed) {
+        items.push({ label: 'Edges Processed', value: benchmark.edgesProcessed });
+      }
+      
+      if (benchmark.edgesPerSec) {
+        items.push({ label: 'Edges/Second', value: benchmark.edgesPerSec });
+      }
+      
+      items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'benchmark-item';
+        div.innerHTML = `
+          <div class="benchmark-value">${item.value}</div>
+          <div class="benchmark-label">${item.label}</div>
+        `;
+        grid.appendChild(div);
+      });
+      
+      const historyEntry = {
+        algorithm: algorithmName,
+        time: benchmark.algorithmTime,
+        timestamp: new Date()
+      };
+      
+      benchmarkHistory.push(historyEntry);
+      if (benchmarkHistory.length > 10) {
+        benchmarkHistory = benchmarkHistory.slice(-10);
+      }
+      
+      updatePerformanceChart();
+      panel.style.display = 'block';
+    }
+
+    function updatePerformanceChart() {
+      const chart = document.getElementById('performanceChart');
+      
+      if (benchmarkHistory.length < 2) {
+        chart.style.display = 'none';
+        return;
+      }
+      
+      chart.style.display = 'block';
+      chart.innerHTML = '<h4>Recent Performance History</h4>';
+      
+      const times = benchmarkHistory.map(entry => {
+        const timeStr = entry.time;
+        let timeValue = parseFloat(timeStr);
+        if (timeStr.includes('μs')) timeValue /= 1000;
+        else if (timeStr.includes('s') && !timeStr.includes('ms')) timeValue *= 1000;
+        return timeValue;
+      });
+      
+      const maxTime = Math.max(...times);
+      
+      benchmarkHistory.forEach((entry, index) => {
+        const timeStr = entry.time;
+        let timeValue = parseFloat(timeStr);
+        if (timeStr.includes('μs')) timeValue /= 1000;
+        else if (timeStr.includes('s') && !timeStr.includes('ms')) timeValue *= 1000;
+        
+        const percentage = (timeValue / maxTime) * 100;
+        const width = Math.max(percentage, 10); // Minimum width for visibility
+        
+        const barDiv = document.createElement('div');
+        barDiv.className = 'chart-bar';
+        barDiv.innerHTML = `
+          <div class="chart-label">${entry.algorithm} #${index + 1}</div>
+          <div class="chart-bar-fill" style="width: ${width}%">${entry.time}</div>
+        `;
+        chart.appendChild(barDiv);
+      });
+    }
+
+    document.getElementById('num_vert').addEventListener('input', updateMaxEdges);
+    document.getElementById('is_directed').addEventListener('change', updateMaxEdges);
+
+    addEdgeInput();
+
+    document.getElementById('randomGraphForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const num_vert = parseInt(document.getElementById('num_vert').value);
+      const num_edges = parseInt(document.getElementById('num_edges').value);
+      const max_weight = parseInt(document.getElementById('max_weight').value);
+      const is_directed = document.getElementById('is_directed').value === 'true';
+      const graph_type = parseInt(document.getElementById('graph_type').value);
+
+      const maxPossibleEdges = calculateMaxEdges();
+      if (num_edges > maxPossibleEdges) {
+        const output = document.getElementById('graphOutput');
+        output.className = 'error';
+        output.textContent = `Error: Maximum number of edges for ${is_directed ? 'directed' : 'undirected'} graph with ${num_vert} vertices: ${maxPossibleEdges}`;
+        return;
+      }
+
+      const requestBody = {
+        num_vert,
+        num_edges,
+        max_weight,
+        is_directed,
+        graph_type
+      };
+
+      await generateGraph('/generate', requestBody);
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      output.className = 'error';
-      output.textContent = `Server error: ${errorText}`;
-      return;
-    }
+    document.getElementById('customGraphForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
 
-    const data = await response.json();
-    output.className = '';
+      const num_vert = parseInt(document.getElementById('custom_num_vert').value);
+      const is_directed = document.getElementById('custom_is_directed').value === 'true';
+      const graph_type = parseInt(document.getElementById('custom_graph_type').value);
+      const edges = getEdgesFromInputs();
 
-    if (graph_type === 0 && data.matrix) {
-      let result = `Adjacency matrix (${is_directed ? 'directed' : 'undirected'} graph):\n`;
-      result += `Vertices: ${num_vert}, Edges: ${num_edges}, Max weight: ${max_weight}\n\n`;
-      
-      result += '   ';
-      for (let i = 0; i < num_vert; i++) {
-        result += `${i}`.padStart(4);
-      }
-      result += '\n';
-      
-      for (let i = 0; i < data.matrix.length; i++) {
-        result += `${i}`.padStart(2) + ' ';
-        for (const val of data.matrix[i]) {
-          const displayVal = val === null ? '-' : val.toString();
-          result += displayVal.padStart(4);
+      for (const edge of edges) {
+        if (edge.from >= num_vert || edge.to >= num_vert || edge.from < 0 || edge.to < 0) {
+          const output = document.getElementById('graphOutput');
+          output.className = 'error';
+          output.textContent = `Error: Vertex indices must be between 0 and ${num_vert - 1}`;
+          return;
         }
-        result += '\n';
       }
-      output.textContent = result;
-    } else if (graph_type === 1 && data.adjList) {
-      let result = `Adjacency list (${is_directed ? 'directed' : 'undirected'} graph):\n`;
-      result += `Vertices: ${num_vert}, Edges: ${num_edges}, Max weight: ${max_weight}\n\n`;
 
-      data.adjList.forEach((adj, i) => {
-        result += `Vertex ${i}: `;
-        if (adj.length === 0) {
-          result += '(no neighbors)';
+      const requestBody = {
+        num_vert,
+        is_directed,
+        graph_type,
+        edges
+      };
+
+      await generateGraph('/create_custom', requestBody);
+    });
+
+    async function generateGraph(endpoint, requestBody) {
+      const output = document.getElementById('graphOutput');
+      const generateBtn = document.getElementById('generateBtn');
+      const createBtn = document.getElementById('createCustomBtn');
+      
+      output.className = 'loading';
+      output.textContent = 'Processing...';
+      if (generateBtn) generateBtn.disabled = true;
+      if (createBtn) createBtn.disabled = true;
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          output.className = 'error';
+          output.textContent = `Server error: ${errorText}`;
+          return;
+        }
+
+        const data = await response.json();
+        currentGraphData = data;
+        output.className = '';
+
+        if (requestBody.graph_type === 0 && data.matrix) {
+          let result = `Adjacency matrix (${requestBody.is_directed ? 'directed' : 'undirected'} graph):\n`;
+          result += `Vertices: ${requestBody.num_vert}`;
+          if (requestBody.num_edges !== undefined) {
+            result += `, Edges: ${requestBody.num_edges}, Max weight: ${requestBody.max_weight}`;
+          }
+          result += '\n\n';
+          
+          result += '   ';
+          for (let i = 0; i < requestBody.num_vert; i++) {
+            result += `${i}`.padStart(4);
+          }
+          result += '\n';
+          
+          for (let i = 0; i < data.matrix.length; i++) {
+            result += `${i}`.padStart(2) + ' ';
+            for (const val of data.matrix[i]) {
+              const displayVal = val === null ? '-' : val.toString();
+              result += displayVal.padStart(4);
+            }
+            result += '\n';
+          }
+          output.textContent = result;
+        } else if (requestBody.graph_type === 1 && data.adjList) {
+          let result = `Adjacency list (${requestBody.is_directed ? 'directed' : 'undirected'} graph):\n`;
+          result += `Vertices: ${requestBody.num_vert}`;
+          if (requestBody.num_edges !== undefined) {
+            result += `, Edges: ${requestBody.num_edges}, Max weight: ${requestBody.max_weight}`;
+          }
+          result += '\n\n';
+
+          data.adjList.forEach((adj, i) => {
+            result += `Vertex ${i}: `;
+            if (adj.length === 0) {
+              result += '(no neighbors)';
+            } else {
+              const edges = adj.map(e => `${e.to}(${e.weight})`).join(', ');
+              result += edges;
+            }
+            result += '\n';
+          });
+          output.textContent = result;
         } else {
-          const edges = adj.map(e => `${e.to}(${e.weight})`).join(', ');
-          result += edges;
+          output.className = 'error';
+          output.textContent = 'Unexpected data format received.';
+          return;
         }
-        result += '\n';
-      });
-      output.textContent = result;
-    } else {
-      output.className = 'error';
-      output.textContent = 'Unexpected data format received.';
+
+        document.getElementById('algorithmButtons').style.display = 'flex';
+        
+        const floydBtn = document.getElementById('floydBtn');
+        const kruskalBtn = document.getElementById('kruskalBtn');
+        
+        // Floyd-Warshall works with any graph but needs matrix representation
+        floydBtn.disabled = false;
+        
+        // Kruskal works only with undirected graphs
+        kruskalBtn.disabled = requestBody.is_directed;
+        if (requestBody.is_directed) {
+          kruskalBtn.title = "Kruskal's algorithm works only with undirected graphs";
+        } else {
+          kruskalBtn.title = "";
+        }
+
+      } catch (err) {
+        output.className = 'error';
+        output.textContent = 'Request error: ' + err.message;
+      } finally {
+        if (generateBtn) {
+          generateBtn.disabled = false;
+          generateBtn.textContent = 'Generate Random Graph';
+        }
+        if (createBtn) {
+          createBtn.disabled = false;
+          createBtn.textContent = 'Create Custom Graph';
+        }
+      }
     }
 
-  } catch (err) {
-    output.className = 'error';
-    output.textContent = 'Request error: ' + err.message;
-  } finally {
-    generateBtn.disabled = false;
-    generateBtn.textContent = 'Generate Graph';
-  }
-});
+    async function runFloyd() {
+      if (!currentGraphData) {
+        alert('Please generate a graph first');
+        return;
+      }
 
-updateMaxEdges();
-</script>
+      const floydBtn = document.getElementById('floydBtn');
+      const originalText = floydBtn.textContent;
+      floydBtn.disabled = true;
+      floydBtn.textContent = 'Running...';
 
+      const startTime = performance.now();
+
+      try {
+        let requestData = {};
+        
+        if (currentGraphData.matrix) {
+          requestData.matrix = currentGraphData.matrix;
+        } else if (currentGraphData.adjList) {
+          // convert adjacency list to matrix
+          const numVert = currentGraphData.adjList.length;
+          const matrix = Array(numVert).fill().map(() => Array(numVert).fill(null));
+          
+          for (let i = 0; i < numVert; i++) {
+            matrix[i][i] = 0;
+          }
+          
+          currentGraphData.adjList.forEach((adj, i) => {
+            adj.forEach(edge => {
+              matrix[i][edge.to] = edge.weight;
+            });
+          });
+          
+          requestData.matrix = matrix;
+        }
+
+        const response = await fetch('/floyd', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const data = await response.json();
+        const endTime = performance.now();
+        const clientTime = endTime - startTime;
+        
+        // Extract benchmark data and display
+        const benchmark = extractBenchmarkData(data.result);
+        const numVert = requestData.matrix.length;
+        const complexity = `O(V³) = O(${numVert}³)`;
+        
+        displayBenchmark('Floyd-Warshall', benchmark, complexity);
+        
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').textContent = data.result + 
+          `\nClient-side total time: ${formatTime(clientTime)}`;
+        document.getElementById('algorithmOutput').className = '';
+
+      } catch (err) {
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').className = 'error';
+        document.getElementById('algorithmOutput').textContent = 'Error running Floyd-Warshall: ' + err.message;
+      } finally {
+        floydBtn.disabled = false;
+        floydBtn.textContent = originalText;
+      }
+    }
+
+    async function runKruskal() {
+      if (!currentGraphData) {
+        alert('Please generate a graph first');
+        return;
+      }
+
+      const kruskalBtn = document.getElementById('kruskalBtn');
+      const originalText = kruskalBtn.textContent;
+      kruskalBtn.disabled = true;
+      kruskalBtn.textContent = 'Running...';
+
+      const startTime = performance.now();
+
+      try {
+        let requestData = {};
+        
+        if (currentGraphData.adjList) {
+          requestData.adjList = currentGraphData.adjList;
+        } else if (currentGraphData.matrix) {
+          requestData.matrix = currentGraphData.matrix;
+        }
+
+        const response = await fetch('/kruskal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const data = await response.json();
+        const endTime = performance.now();
+        const clientTime = endTime - startTime;
+        
+        const benchmark = extractBenchmarkData(data.result);
+        
+        let numEdges = 0;
+        if (currentGraphData.adjList) {
+          numEdges = currentGraphData.adjList.reduce((total, adj) => total + adj.length, 0) / 2; // Divide by 2 for undirected
+        } else if (currentGraphData.matrix) {
+          for (let i = 0; i < currentGraphData.matrix.length; i++) {
+            for (let j = i + 1; j < currentGraphData.matrix[i].length; j++) {
+              if (currentGraphData.matrix[i][j] !== null) {
+                numEdges++;
+              }
+            }
+          }
+        }
+        
+        const complexity = `O(E log E) = O(${numEdges} log ${numEdges})`;
+        
+        displayBenchmark('Kruskal', benchmark, complexity);
+        
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').textContent = data.result + 
+          `\nClient-side total time: ${formatTime(clientTime)}`;
+        document.getElementById('algorithmOutput').className = '';
+
+      } catch (err) {
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').className = 'error';
+        document.getElementById('algorithmOutput').textContent = 'Error running Kruskal: ' + err.message;
+      } finally {
+        kruskalBtn.disabled = false;
+        kruskalBtn.textContent = originalText;
+      }
+    }
+
+    updateMaxEdges();
+  </script>
 </body>
 </html>
