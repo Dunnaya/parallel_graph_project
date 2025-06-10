@@ -7,6 +7,7 @@
 #include <climits>
 #include <cstdlib>
 #include <ctime>
+#include <string>
 
 typedef std::vector<std::vector<int> > Matrix;
 const int INF = INT_MAX / 2;
