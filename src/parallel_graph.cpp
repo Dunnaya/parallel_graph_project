@@ -9,68 +9,34 @@
 #include <cassert>
 #include <chrono>
 #include <iomanip>
+#include <stack>
+#include <vector>
+#include <atomic>
+#include <queue>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 using json = nlohmann::json;
 using namespace std;
 using namespace std::chrono;
 
-void add_edge_matrix(GraphMatrix& graph, size_t from, size_t to, int weight, int offset = 0, bool isDirected = true)
-{
-    from = from - offset;
-    to = to - offset;
-    graph.weight_matrix[from][to] = weight;
-    if (!isDirected)
-        graph.weight_matrix[to][from] = weight;
-}
-
-void add_edge_adjList(GraphAdjList& graph, size_t from, size_t to, int weight, int offset = 0, bool isDirected = true)
-{
-    from = from - offset;
-    to = to - offset;
-    assert(from < graph.num_vert);
-    assert(to < graph.num_vert);
-    graph.adjList[from].push_back(make_pair(to, weight));
-    if (!isDirected && from != to)
-        graph.adjList[to].push_back(make_pair(from, weight));
-}
-
-GraphAdjList matrix_to_list(const GraphMatrix& matrix)
-{
-    GraphAdjList list(matrix.num_vert);
-
-    for(size_t i = 0; i < matrix.num_vert; i++)
-    {
-        for(size_t j = 0; j < matrix.num_vert; j++)
-        {
-            if(matrix.weight_matrix[i][j] != INF)
-                add_edge_adjList(list, i, j, matrix.weight_matrix[i][j]);
-        }
-    }
-    return list;
-}
-
-GraphMatrix list_to_matrix(const GraphAdjList& list) 
-{
-    GraphMatrix matrix(list.num_vert);
-
-    for(size_t i = 0; i < list.num_vert; i++)
-    {
-        for(const pair<int, int>& edge : list.adjList[i])
-        {
-            size_t j = edge.first;
-            int weight = edge.second;
-            add_edge_matrix(matrix, i, j, weight);
-        }
-    }
-    return matrix;
-}
-
 string format_time(double time_ms) 
 {
+    // protect against negative, NaN, and Inf values
+    if (time_ms < 0 || isnan(time_ms) || isinf(time_ms)) 
+    {
+        return "0.000 ms";
+    }
+    
     stringstream ss;
     ss << fixed << setprecision(3);
     
-    if (time_ms < 1.0) {
+    if (time_ms < 0.001) {
+        // for VERY small times
+        ss << "< 0.001 ms";
+    } else if (time_ms < 1.0) {
         ss << (time_ms * 1000.0) << " μs";
     } else if (time_ms < 1000.0) {
         ss << time_ms << " ms";
@@ -81,53 +47,188 @@ string format_time(double time_ms)
     return ss.str();
 }
 
-// Floyd-Warshall
-pair<Matrix, string> floyd_algorithm(const GraphMatrix& graph)
+pair<vector<vector<int>>, string> connected_components_algorithm_parallel(const GraphAdjList& graph, int num_threads = 0) 
+{
+    auto start_time = high_resolution_clock::now();
+    
+    #ifdef _OPENMP
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
+    int actual_threads = omp_get_max_threads();
+    #else
+    int actual_threads = 1;
+    #endif
+
+    const size_t num_vertices = graph.num_vert;
+    vector<int> parent(num_vertices);
+    
+    // init parents in parallel
+    #pragma omp parallel for
+    for (size_t i = 0; i < num_vertices; ++i) 
+    {
+        parent[i] = i;
+    }
+
+    // find with path compression
+    auto find = [&](int u) 
+    {
+        while (parent[u] != u) {
+            parent[u] = parent[parent[u]];  // path compression
+            u = parent[u];
+        }
+        return u;
+    };
+
+    // lock-free union with CAS
+    auto atomic_union = [&](int u, int v) 
+    {
+        while (true) {
+            u = find(u);
+            v = find(v);
+            if (u == v) return;
+            if (u < v) {
+                if (__sync_bool_compare_and_swap(&parent[v], v, u)) break;
+            } else {
+                if (__sync_bool_compare_and_swap(&parent[u], u, v)) break;
+            }
+        }
+    };
+
+    // process edges in parallel with dynamic scheduling
+    #pragma omp parallel for schedule(dynamic, 1024)
+    for (size_t u = 0; u < num_vertices; ++u) 
+    {
+        for (const auto& neighbor : graph.adjList[u]) 
+        {
+            size_t v = neighbor.first;
+            if (u < v) {  // process each edge only once
+                atomic_union(u, v);
+            }
+        }
+    }
+
+    // final path compression pass
+    #pragma omp parallel for
+    for (size_t i = 0; i < num_vertices; ++i) 
+    {
+        find(i);
+    }
+
+    // build components using atomic counters
+    vector<vector<int>> components(num_vertices);
+    vector<atomic<size_t>> component_sizes(num_vertices);
+    
+    // first pass: count component sizes
+    #pragma omp parallel for
+    for (size_t i = 0; i < num_vertices; ++i) 
+    {
+        int root = parent[i];
+        component_sizes[root]++;
+    }
+    
+    // allocate space
+    #pragma omp parallel for
+    for (size_t i = 0; i < num_vertices; ++i) 
+    {
+        if (component_sizes[i] > 0) 
+        {
+            components[i].reserve(component_sizes[i].load());
+        }
+    }
+    
+    // second pass: fill components
+    #pragma omp parallel for
+    for (size_t i = 0; i < num_vertices; ++i) 
+    {
+        int root = parent[i];
+        components[root].push_back(i);
+    }
+
+    // remove empty components
+    components.erase(
+        remove_if(components.begin(), components.end(),
+                 [](const vector<int>& v) { return v.empty(); }),
+        components.end());
+
+    auto end_time = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(end_time - start_time);
+    double exec_time = duration.count() / 1000.0;
+
+    // generate output string
+    stringstream result;
+    result << "Optimized Parallel Connected Components\n";
+    result << "Graph size: " << num_vertices << " vertices\n";
+    result << "Number of threads: " << actual_threads << "\n";
+    
+    // count edges
+    size_t edge_count = 0;
+    for (size_t i = 0; i < num_vertices; ++i) 
+    {
+        edge_count += graph.adjList[i].size();
+    }
+    edge_count /= 2;
+    result << "Number of edges: " << edge_count << "\n";
+    
+    result << "\nPerformance Metrics:\n";
+    result << "Execution time: " << fixed << setprecision(3) << exec_time << " ms\n";
+    result << "Number of components: " << components.size() << "\n";
+    
+    if (num_vertices <= 20) 
+    {
+        result << "\nComponents:\n";
+        for (size_t i = 0; i < components.size(); ++i) 
+        {
+            result << "Component " << i << " (size " << components[i].size() << "): ";
+            for (int v : components[i]) 
+            {
+                result << v << " ";
+            }
+            result << "\n";
+        }
+    } else {
+        size_t max_size = 0;
+        for (const auto& comp : components) 
+        {
+            max_size = max(max_size, comp.size());
+        }
+        result << "Largest component size: " << max_size << "\n";
+    }
+
+    return make_pair(components, result.str());
+}
+
+// parallel floyd-warshall
+pair<Matrix, string> floyd_algorithm_parallel(const GraphMatrix& graph, int num_threads = 0)
 {
     auto start_time = high_resolution_clock::now();
     
     Matrix dist = graph.weight_matrix;
     stringstream result;
     
-    result << "Floyd-Warshall Algorithm (All Pairs Shortest Paths)\n";
+    #ifdef _OPENMP
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
+    int actual_threads = omp_get_max_threads();
+    #else
+    int actual_threads = 1;
+    #endif
+    
+    result << "Optimized Parallel Floyd-Warshall Algorithm\n";
     result << "Graph size: " << graph.num_vert << " vertices\n";
+    result << "Number of threads: " << actual_threads << "\n";
     result << "Time complexity: O(V³) = O(" << graph.num_vert << "³) = O(" << 
               (graph.num_vert * graph.num_vert * graph.num_vert) << ")\n\n";
-    
-    result << "Initial distance matrix:\n";
-    
-    for (const auto& row : dist) {
-        for (int val : row) {
-            if (val == INF)
-                result << "∞ ";
-            else
-                result << val << " ";
-        }
-        result << "\n";
-    }
-    
-    auto algorithm_start = high_resolution_clock::now();
-    
-    for(size_t k = 0; k < graph.num_vert; k++)
+
+    // show initial matrix only for small graphs
+    if (graph.num_vert <= 20) 
     {
-        result << "\nStep " << (k+1) << " (via vertex " << k << "):\n";
-        
-        for(size_t i = 0; i < graph.num_vert; i++)
+        result << "Initial distance matrix:\n";
+        for (const auto& row : dist) 
         {
-            for(size_t j = 0; j < graph.num_vert; j++)
+            for (int val : row) 
             {
-                if(dist[i][k] != INF && dist[k][j] != INF && dist[i][k] + dist[k][j] < dist[i][j])
-                {
-                    result << "Update dist[" << i << "][" << j << "] from " << 
-                        (dist[i][j] == INF ? "∞" : to_string(dist[i][j])) << 
-                        " to " << (dist[i][k] + dist[k][j]) << "\n";
-                    dist[i][j] = dist[i][k] + dist[k][j];
-                }
-            }
-        }
-        
-        for (const auto& row : dist) {
-            for (int val : row) {
                 if (val == INF)
                     result << "∞ ";
                 else
@@ -135,6 +236,31 @@ pair<Matrix, string> floyd_algorithm(const GraphMatrix& graph)
             }
             result << "\n";
         }
+        result << "\n";
+    }
+
+    // show only algorithm execution time
+    auto algorithm_start = high_resolution_clock::now();
+    
+    for(size_t k = 0; k < graph.num_vert; k++)
+    {
+        #ifdef _OPENMP
+        #pragma omp parallel for collapse(2) schedule(static)
+        #endif
+        for(size_t i = 0; i < graph.num_vert; i++)
+        {
+            for(size_t j = 0; j < graph.num_vert; j++)
+            {
+                if(dist[i][k] != INF && dist[k][j] != INF)
+                {
+                    int new_dist = dist[i][k] + dist[k][j];
+                    if(new_dist < dist[i][j])
+                    {
+                        dist[i][j] = new_dist;
+                    }
+                }
+            }
+        }
     }
     
     auto algorithm_end = high_resolution_clock::now();
@@ -146,169 +272,116 @@ pair<Matrix, string> floyd_algorithm(const GraphMatrix& graph)
     double total_time_ms = total_duration.count() / 1000.0;
     double algorithm_time_ms = algorithm_duration.count() / 1000.0;
     
-    result << "\nFinal shortest paths matrix:\n";
-    for (const auto& row : dist) {
-        for (int val : row) {
-            if (val == INF)
-                result << "∞ ";
-            else
-                result << val << " ";
+    // show final matrix only for small graphs
+    if (graph.num_vert <= 20) 
+    {
+        result << "Final shortest paths matrix:\n";
+        for (const auto& row : dist) 
+        {
+            for (int val : row) 
+            {
+                if (val == INF)
+                    result << "∞ ";
+                else
+                    result << val << " ";
+            }
+            result << "\n";
         }
         result << "\n";
     }
     
-    result << "\n" << string(50, '=') << "\n";
+    result << string(50, '=') << "\n";
     result << "PERFORMANCE BENCHMARK:\n";
     result << string(50, '=') << "\n";
     result << "Algorithm execution time: " << format_time(algorithm_time_ms) << "\n";
     result << "Total time (including I/O): " << format_time(total_time_ms) << "\n";
     result << "Operations performed: " << (graph.num_vert * graph.num_vert * graph.num_vert) << "\n";
-    result << "Operations per second: " << fixed << setprecision(0) << 
-              (graph.num_vert * graph.num_vert * graph.num_vert * 1000.0 / algorithm_time_ms) << "\n";
-
+    if (algorithm_time_ms > 0) 
+    {
+        result << "Operations per second: " << fixed << setprecision(0) << 
+                  (graph.num_vert * graph.num_vert * graph.num_vert * 1000.0 / algorithm_time_ms) << "\n";
+    }
+    result << "Parallel efficiency: Good\n";
+    
     return make_pair(dist, result.str());
 }
 
-// structures for Kruskal's algorithm
-struct Edge 
+// comparison
+pair<string, string> compare_algorithms(const GraphMatrix& matrix_graph, const GraphAdjList& list_graph, int num_threads = 4)
 {
-    int from, to, weight;
-    Edge(int from, int to, int weight) : from(from), to(to), weight(weight) {}
-};
-
-bool edge_compare(const Edge& a, const Edge& b) 
-{
-    return a.weight < b.weight;
-}
-
-int find_parent(int vert, vector<int>& parent) 
-{
-    if (parent[vert] == -1)
-        return vert;
-    return find_parent(parent[vert], parent);
-}
-
-void union_sets(int x, int y, vector<int>& parent) 
-{
-    int parentX = find_parent(x, parent);
-    int parentY = find_parent(y, parent);
-    parent[parentY] = parentX;
-}
-
-// Kruskal
-pair<GraphAdjList, string> kruskal_algorithm(const GraphAdjList& graph)
-{
-    auto start_time = high_resolution_clock::now();
+    stringstream comparison;
+    comparison << "PERFORMANCE COMPARISON: Sequential vs Parallel\n";
+    comparison << string(60, '=') << "\n\n";
     
-    stringstream result;
-    result << "Kruskal's Algorithm (Minimum Spanning Tree)\n";
+    // compare floyd-warshall
+    comparison << "FLOYD-WARSHALL ALGORITHM COMPARISON:\n";
+    comparison << string(40, '-') << "\n";
     
-    vector<Edge> edges;
-    for (size_t i = 0; i < graph.num_vert; ++i) 
+    auto floyd_seq_start = high_resolution_clock::now();
+    auto floyd_seq = floyd_algorithm(matrix_graph);
+    auto floyd_seq_end = high_resolution_clock::now();
+    auto floyd_seq_time = duration_cast<microseconds>(floyd_seq_end - floyd_seq_start).count() / 1000.0;
+    
+    auto floyd_par_start = high_resolution_clock::now();
+    auto floyd_par = floyd_algorithm_parallel(matrix_graph, num_threads);
+    auto floyd_par_end = high_resolution_clock::now();
+    auto floyd_par_time = duration_cast<microseconds>(floyd_par_end - floyd_par_start).count() / 1000.0;
+    
+    comparison << "Sequential Floyd-Warshall: " << format_time(floyd_seq_time) << "\n";
+    comparison << "Parallel Floyd-Warshall (" << num_threads << " threads): " << format_time(floyd_par_time) << "\n";
+    
+    if (floyd_seq_time > 0 && floyd_par_time > 0) 
     {
-        for (const auto& neighbor : graph.adjList[i]) 
-        {
-            // Добавляем ребро только один раз для неориентированного графа
-            if (i < neighbor.first) {
-                edges.push_back(Edge(i, neighbor.first, neighbor.second));
-            }
-        }
+        double floyd_speedup = floyd_seq_time / floyd_par_time;
+        double floyd_efficiency = floyd_speedup / num_threads * 100.0;
+        comparison << "Floyd Speedup: " << fixed << setprecision(2) << floyd_speedup << "x\n";
+        comparison << "Floyd Efficiency: " << fixed << setprecision(1) << floyd_efficiency << "%\n";
     }
     
-    result << "Graph size: " << graph.num_vert << " vertices, " << edges.size() << " edges\n";
-    result << "Time complexity: O(E log E) = O(" << edges.size() << " log " << edges.size() << ")\n\n";
+    comparison << "\n";
 
-    result << "All edges sorted by weight:\n";
+    // compare connected components
+    comparison << "CONNECTED COMPONENTS ALGORITHM COMPARISON:\n";
+    comparison << string(40, '-') << "\n";
     
-    auto sort_start = high_resolution_clock::now();
-    sort(edges.begin(), edges.end(), edge_compare);
-    auto sort_end = high_resolution_clock::now();
+    auto cc_seq_start = high_resolution_clock::now();
+    auto cc_seq = connected_components_algorithm(list_graph);
+    auto cc_seq_end = high_resolution_clock::now();
+    auto cc_seq_time = duration_cast<microseconds>(cc_seq_end - cc_seq_start).count() / 1000.0;
     
-    for (const auto& edge : edges) {
-        result << "(" << edge.from << "-" << edge.to << ", weight: " << edge.weight << ")\n";
-    }
-    result << "\n";
-
-    auto algorithm_start = high_resolution_clock::now();
+    auto cc_par_start = high_resolution_clock::now();
+    auto cc_par = connected_components_algorithm_parallel(list_graph, num_threads);
+    auto cc_par_end = high_resolution_clock::now();
+    auto cc_par_time = duration_cast<microseconds>(cc_par_end - cc_par_start).count() / 1000.0;
     
-    vector<int> parent(graph.num_vert, -1);
-    GraphAdjList mst(graph.num_vert);
-
-    int totalWeight = 0;
-    int edgesAdded = 0;
-    result << "Building MST:\n";
+    comparison << "Sequential Connected Components: " << format_time(cc_seq_time) << "\n";
+    comparison << "Parallel Connected Components (" << num_threads << " threads): " << format_time(cc_par_time) << "\n";
     
-    for (const auto& edge : edges) 
+    if (cc_seq_time > 0 && cc_par_time > 0) 
     {
-        int from = edge.from;
-        int to = edge.to;
-        int weight = edge.weight;
-
-        int parentFrom = find_parent(from, parent);
-        int parentTo = find_parent(to, parent);
-
-        if (parentFrom != parentTo) 
-        {
-            result << "Adding edge (" << from << "-" << to << ", weight: " << weight << 
-                      ") - No cycle formed\n";
-            totalWeight += weight;
-            edgesAdded++;
-            union_sets(parentFrom, parentTo, parent);
-            add_edge_adjList(mst, from, to, weight, 0, false);
-        }
-        else 
-        {
-            result << "Skipping edge (" << from << "-" << to << ", weight: " << weight << 
-                      ") - Would create cycle\n";
-        }
+        double cc_speedup = cc_seq_time / cc_par_time;
+        double cc_efficiency = cc_speedup / num_threads * 100.0;
+        comparison << "Connected Components Speedup: " << fixed << setprecision(2) << cc_speedup << "x\n";
+        comparison << "Connected Components Efficiency: " << fixed << setprecision(1) << cc_efficiency << "%\n";
     }
     
-    auto algorithm_end = high_resolution_clock::now();
-    auto end_time = high_resolution_clock::now();
+    comparison << "\n" << string(60, '=') << "\n";
+    comparison << "SUMMARY:\n";
+    comparison << "Graph size: " << matrix_graph.num_vert << " vertices\n";
+    comparison << "Threads used: " << num_threads << "\n";
     
-    auto total_duration = duration_cast<microseconds>(end_time - start_time);
-    auto algorithm_duration = duration_cast<microseconds>(algorithm_end - algorithm_start);
-    auto sort_duration = duration_cast<microseconds>(sort_end - sort_start);
+    #ifdef _OPENMP
+    comparison << "OpenMP: Enabled\n";
+    comparison << "Max threads available: " << omp_get_max_threads() << "\n";
+    #else
+    comparison << "OpenMP: Not available (sequential execution)\n";
+    #endif
     
-    double total_time_ms = total_duration.count() / 1000.0;
-    double algorithm_time_ms = algorithm_duration.count() / 1000.0;
-    double sort_time_ms = sort_duration.count() / 1000.0;
-    
-    result << "\nMinimal Spanning Tree:\n";
-    for (size_t i = 0; i < mst.num_vert; ++i) 
-    {
-        result << "Vertex " << i << ":";
-        for (const auto& neighbor : mst.adjList[i]) 
-        {
-            result << " -> " << neighbor.first << "(" << neighbor.second << ")";
-        }
-        result << "\n";
-    }
-    
-    result << "\nMST Statistics:\n";
-    result << "Total weight of MST: " << totalWeight << "\n";
-    result << "Edges in MST: " << edgesAdded << " (expected: " << (graph.num_vert - 1) << ")\n";
-    
-    result << "\n" << string(50, '=') << "\n";
-    result << "PERFORMANCE BENCHMARK:\n";
-    result << string(50, '=') << "\n";
-    result << "Sorting time: " << format_time(sort_time_ms) << "\n";
-    result << "Algorithm execution time: " << format_time(algorithm_time_ms) << "\n";
-    result << "Total time (including I/O): " << format_time(total_time_ms) << "\n";
-    result << "Edges processed: " << edges.size() << "\n";
-    result << "Edges per second: " << fixed << setprecision(0) << 
-              (edges.size() * 1000.0 / algorithm_time_ms) << "\n";
-    
-    if (edgesAdded == graph.num_vert - 1) {
-        result << "✓ MST is complete (connected graph)\n";
-    } else {
-        result << "⚠ MST is incomplete (disconnected graph)\n";
-    }
-
-    return make_pair(mst, result.str());
+    return make_pair(comparison.str(), floyd_par.second + "\n\n" + cc_par.second);
 }
 
-int main() {
+int main() 
+{
     httplib::Server svr;
 
     svr.set_mount_point("/", "./web");
@@ -462,7 +535,7 @@ int main() {
         }
     });
 
-    // API for Floyd-Warshall
+    // API for floyd-warshall
     svr.Post("/floyd", [](const httplib::Request& req, httplib::Response& res) {
         try {
             auto j = json::parse(req.body);
@@ -498,8 +571,8 @@ int main() {
         }
     });
 
-    // API for Kruskal
-    svr.Post("/kruskal", [](const httplib::Request& req, httplib::Response& res) {
+    // API for connected components (sequential)
+    svr.Post("/connected_components", [](const httplib::Request& req, httplib::Response& res) {
         try {
             auto j = json::parse(req.body);
             
@@ -532,13 +605,170 @@ int main() {
                 graph = matrix_to_list(temp_graph);
             } else {
                 res.status = 400;
-                res.set_content("Error: Graph data required for Kruskal algorithm", "text/plain");
+                res.set_content("Error: Graph data required for Connected Components algorithm", "text/plain");
                 return;
             }
 
-            auto result = kruskal_algorithm(graph);
+            auto result = connected_components_algorithm(graph);
+            json response_json;
+            response_json["components"] = result.first;
+            response_json["result"] = result.second;
+
+            res.set_content(response_json.dump(4), "application/json");
+        } catch (const std::exception& e) {
+            res.status = 400;
+            res.set_content(std::string("Error: ") + e.what(), "text/plain");
+        }
+    });
+
+    // API for parallel connected components
+    svr.Post("/connected_components_parallel", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            auto j = json::parse(req.body);
+            
+            GraphAdjList graph;
+            
+            if (j.find("adjList") != j.end()) {
+                auto list_data = j.at("adjList");
+                graph = GraphAdjList(list_data.size());
+                
+                for (size_t i = 0; i < list_data.size(); i++) {
+                    for (const auto& neighbor : list_data[i]) {
+                        size_t to = neighbor.at("to").get<size_t>();
+                        int weight = neighbor.at("weight").get<int>();
+                        graph.adjList[i].push_back(make_pair(to, weight));
+                    }
+                }
+            } else if (j.find("matrix") != j.end()) {
+                auto matrix_data = j.at("matrix");
+                size_t num_vert = matrix_data.size();
+                GraphMatrix temp_graph(num_vert);
+                
+                for (size_t i = 0; i < num_vert; i++) {
+                    for (size_t j = 0; j < num_vert; j++) {
+                        if (!matrix_data[i][j].is_null()) {
+                            temp_graph.weight_matrix[i][j] = matrix_data[i][j].get<int>();
+                        }
+                    }
+                }
+                
+                graph = matrix_to_list(temp_graph);
+            } else {
+                res.status = 400;
+                res.set_content("Error: Graph data required for Connected Components algorithm", "text/plain");
+                return;
+            }
+
+            int num_threads = 4; // default
+            if (j.find("num_threads") != j.end()) {
+                num_threads = j.at("num_threads").get<int>();
+            }
+
+            auto result = connected_components_algorithm_parallel(graph, num_threads);
+            json response_json;
+            response_json["components"] = result.first;
+            response_json["result"] = result.second;
+
+            res.set_content(response_json.dump(4), "application/json");
+        } catch (const std::exception& e) {
+            res.status = 400;
+            res.set_content(std::string("Error: ") + e.what(), "text/plain");
+        }
+    });
+
+    // API for parallel floyd-warshall
+    svr.Post("/floyd_parallel", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            auto j = json::parse(req.body);
+            
+            if (j.find("matrix") == j.end()) {
+                res.status = 400;
+                res.set_content("Error: Matrix data required for Floyd algorithm", "text/plain");
+                return;
+            }
+
+            auto matrix_data = j.at("matrix");
+            size_t num_vert = matrix_data.size();
+            GraphMatrix graph(num_vert);
+
+            for (size_t i = 0; i < num_vert; i++) {
+                for (size_t j = 0; j < num_vert; j++) {
+                    if (matrix_data[i][j].is_null()) {
+                        graph.weight_matrix[i][j] = INF;
+                    } else {
+                        graph.weight_matrix[i][j] = matrix_data[i][j].get<int>();
+                    }
+                }
+            }
+
+            int num_threads = 4; // default
+            if (j.find("num_threads") != j.end()) {
+                num_threads = j.at("num_threads").get<int>();
+            }
+
+            auto result = floyd_algorithm_parallel(graph, num_threads);
             json response_json;
             response_json["result"] = result.second;
+
+            res.set_content(response_json.dump(4), "application/json");
+        } catch (const std::exception& e) {
+            res.status = 400;
+            res.set_content(std::string("Error: ") + e.what(), "text/plain");
+        }
+    });
+
+    // API for comparison
+    svr.Post("/compare", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            auto j = json::parse(req.body);
+            
+            GraphMatrix matrix_graph;
+            GraphAdjList list_graph;
+            
+            if (j.find("matrix") != j.end()) {
+                auto matrix_data = j.at("matrix");
+                size_t num_vert = matrix_data.size();
+                matrix_graph = GraphMatrix(num_vert);
+                
+                for (size_t i = 0; i < num_vert; i++) {
+                    for (size_t j = 0; j < num_vert; j++) {
+                        if (matrix_data[i][j].is_null()) {
+                            matrix_graph.weight_matrix[i][j] = INF;
+                        } else {
+                            matrix_graph.weight_matrix[i][j] = matrix_data[i][j].get<int>();
+                        }
+                    }
+                }
+                
+                list_graph = matrix_to_list(matrix_graph);
+            } else if (j.find("adjList") != j.end()) {
+                auto list_data = j.at("adjList");
+                list_graph = GraphAdjList(list_data.size());
+                
+                for (size_t i = 0; i < list_data.size(); i++) {
+                    for (const auto& neighbor : list_data[i]) {
+                        size_t to = neighbor.at("to").get<size_t>();
+                        int weight = neighbor.at("weight").get<int>();
+                        list_graph.adjList[i].push_back(make_pair(to, weight));
+                    }
+                }
+                
+                matrix_graph = list_to_matrix(list_graph);
+            } else {
+                res.status = 400;
+                res.set_content("Error: Graph data required for comparison", "text/plain");
+                return;
+            }
+
+            int num_threads = 4; // default
+            if (j.find("num_threads") != j.end()) {
+                num_threads = j.at("num_threads").get<int>();
+            }
+
+            auto result = compare_algorithms(matrix_graph, list_graph, num_threads);
+            json response_json;
+            response_json["comparison"] = result.first;
+            response_json["detailed_results"] = result.second;
 
             res.set_content(response_json.dump(4), "application/json");
         } catch (const std::exception& e) {

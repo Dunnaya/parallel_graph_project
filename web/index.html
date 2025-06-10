@@ -8,7 +8,6 @@
     body { 
       font-family: Arial, sans-serif; 
       margin: 20px; 
-      
       background: linear-gradient(to right, #b0cbfe, #c095f2);
     }
     
@@ -21,11 +20,14 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     
-    h1, h2 {
+    h1, h2, h5 {
       color: #333;
+    }
+
+    h1, h2 {
       text-align: center;
     }
-    
+
     .tabs {
       display: flex;
       margin-bottom: 20px;
@@ -269,6 +271,82 @@
       font-size: 0.8em;
       font-weight: bold;
     }
+
+    .parallel-controls {
+      background: linear-gradient(135deg, #b06bff, #57cffe);
+      padding: 15px;
+      border-radius: 8px;
+      margin: 15px 0;
+      color: white;
+    }
+
+    .parallel-controls h4 {
+      margin: 0 0 10px 0;
+      color: white;
+    }
+
+    .threads-input {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .threads-input label {
+      font-weight: bold;
+      margin: 0;
+      color: white;
+    }
+
+    .threads-input input {
+      width: 80px;
+      margin: 0;
+    }
+
+    .parallel-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .parallel-buttons button {
+      background: rgba(255,255,255,0.2);
+      border: 2px solid rgba(255,255,255,0.5);
+      color: white;
+      font-weight: bold;
+      margin: 0;
+      width: auto;
+      flex: 1;
+    }
+
+    .parallel-buttons button:hover {
+      background: rgba(255,255,255,0.3);
+      border-color: rgba(255,255,255,0.8);
+    }
+
+    .parallel-buttons button:disabled {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.5);
+    }
+
+    .compare-section {
+      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      padding: 20px;
+      border-radius: 10px;
+      margin: 20px 0;
+      color: white;
+    }
+
+    .compare-section button {
+      background: rgba(255,255,255,0.2);
+      border: 2px solid rgba(255,255,255,0.5);
+      color: white;
+      font-weight: bold;
+    }
+
+    .compare-section button:hover {
+      background: rgba(255,255,255,0.3);
+    }
   </style>
 </head>
 <body>
@@ -280,18 +358,18 @@
       <div class="tab" onclick="switchTab('custom')">Custom Graph</div>
     </div>
 
-    <!-- Random Graph -->
+    <!-- random graph -->
     <div id="random" class="tab-content active">
       <form id="randomGraphForm">
         <label>Number of vertices:
-          <input type="number" id="num_vert" value="5" min="1" max="100" required />
+          <input type="number" id="num_vert" value="5" min="1" max="2000" required />
         </label>
 
         <label>Number of edges:
           <input type="number" id="num_edges" value="7" min="0" required />
         </label>
 
-        <label>Maximum edge weight:
+        <label>Max edge weight:
           <input type="number" id="max_weight" value="9" min="1" max="1000" required />
         </label>
 
@@ -301,7 +379,7 @@
             <option value="true">Yes</option>
           </select>
         </label>
-
+        
         <label>Graph type:
           <select id="graph_type">
             <option value="0" selected>Adjacency matrix</option>
@@ -309,11 +387,15 @@
           </select>
         </label>
 
-        <button type="submit" id="generateBtn">Generate Random Graph</button>
+        <h5>* For graphs with more than 20 vertices adjacency list representation is recommended</h5>
+
+        <h5>** The algorithm will only be shown if your graph has <= 20 vertices</h5>
+
+        <button type="submit" id="generateBtn">Generate Random Graph!</button>
       </form>
     </div>
 
-    <!-- Custom Graph -->
+    <!-- custom graph -->
     <div id="custom" class="tab-content">
       <form id="customGraphForm">
         <label>Number of vertices:
@@ -334,23 +416,46 @@
           </select>
         </label>
 
+        <h5>* For graphs with more than 20 vertices adjacency list representation is recommended</h5>
+
+        <h5>** The algorithm will only be shown if your graph has <= 20 vertices</h5>
+
         <div class="custom-edges">
           <h3>Edges: (from, to, weight)</h3>
           <div id="edgesList"></div>
           <button type="button" class="add-edge-btn" onclick="addEdgeInput()">Add Edge</button>
         </div>
 
-        <button type="submit" id="createCustomBtn">Create Custom Graph</button>
+        <button type="submit" id="createCustomBtn">Create Custom Graph!</button>
       </form>
     </div>
 
     <div class="result-section">
       <h2>Graph:</h2>
-      <pre id="graphOutput">Generate or create a graph to see it here</pre>
+      <pre id="graphOutput">Generate or create a graph to see it here =)</pre>
       
       <div class="algorithm-buttons" id="algorithmButtons" style="display: none;">
         <button onclick="runFloyd()" id="floydBtn">Run Floyd-Warshall</button>
-        <button onclick="runKruskal()" id="kruskalBtn">Run Kruskal's MST</button>
+        <button onclick="runConnectedComponents()" id="componentsBtn">Run Connected Components</button>
+      </div>
+
+      <div class="parallel-controls" id="parallelControls" style="display: none;">
+        <h4>Parallel Algorithms</h4>
+        <div class="threads-input">
+          <label>Number of threads:</label>
+          <input type="number" id="numThreads" value="4" min="1" max="16" />
+          <span style="font-size: 0.9em; opacity: 0.9;">Optimal: 2-8 threads</span>
+        </div>
+        <div class="parallel-buttons">
+          <button onclick="runFloydParallel()" id="floydParallelBtn">Parallel Floyd-Warshall</button>
+          <button onclick="runConnectedComponentsParallel()" id="componentsParallelBtn">Parallel Connected Components</button>
+        </div>
+      </div>
+
+      <div class="compare-section" id="compareSection" style="display: none;">
+        <h4>Performance Comparison</h4>
+        <p style="margin: 10px 0; font-size: 0.9em;">Compare sequential vs parallel performance</p>
+        <button onclick="runComparison()" id="compareBtn" style="width: 100%;">Run Sequential vs Parallel Comparison</button>
       </div>
       
       <div id="algorithmResults" style="display: none;">
@@ -387,6 +492,8 @@
     function clearResults() {
       document.getElementById('graphOutput').textContent = 'Generate or create a graph to see it here';
       document.getElementById('algorithmButtons').style.display = 'none';
+      document.getElementById('parallelControls').style.display = 'none';
+      document.getElementById('compareSection').style.display = 'none';
       document.getElementById('algorithmResults').style.display = 'none';
       document.getElementById('benchmarkPanel').style.display = 'none';
       currentGraphData = null;
@@ -461,33 +568,33 @@
       const benchmark = {};
       
       for (const line of lines) {
-        if (line.includes('Algorithm execution time:')) {
-          const match = line.match(/Algorithm execution time:\s*(.+)/);
-          if (match) benchmark.algorithmTime = match[1].trim();
+        if (line.includes('Algorithm execution time:') || line.includes('Execution time:')) {
+          const match = line.match(/(Algorithm execution time|Execution time):\s*(.+)/);
+          if (match) benchmark.algorithmTime = match[2].trim();
         }
         if (line.includes('Total time (including I/O):')) {
           const match = line.match(/Total time \(including I\/O\):\s*(.+)/);
           if (match) benchmark.totalTime = match[1].trim();
         }
-        if (line.includes('Sorting time:')) {
-          const match = line.match(/Sorting time:\s*(.+)/);
-          if (match) benchmark.sortingTime = match[1].trim();
+        if (line.includes('Vertices processed:') || line.includes('Graph size:')) {
+          const match = line.match(/(Vertices processed|Graph size):\s*(\d+)/);
+          if (match) benchmark.verticesProcessed = match[2].trim();
         }
-        if (line.includes('Operations performed:')) {
-          const match = line.match(/Operations performed:\s*(.+)/);
-          if (match) benchmark.operations = match[1].trim();
+        if (line.includes('Edges processed:') || line.includes('Number of edges:')) {
+          const match = line.match(/(Edges processed|Number of edges):\s*(\d+)/);
+          if (match) benchmark.edgesProcessed = match[2].trim();
         }
-        if (line.includes('Operations per second:')) {
-          const match = line.match(/Operations per second:\s*(.+)/);
-          if (match) benchmark.operationsPerSec = match[1].trim();
+        if (line.includes('Vertices per second:')) {
+          const match = line.match(/Vertices per second:\s*(.+)/);
+          if (match) benchmark.verticesPerSec = match[1].trim();
         }
-        if (line.includes('Edges processed:')) {
-          const match = line.match(/Edges processed:\s*(.+)/);
-          if (match) benchmark.edgesProcessed = match[1].trim();
+        if (line.includes('Number of connected components:') || line.includes('Number of components:')) {
+          const match = line.match(/(Number of connected components|Number of components):\s*(\d+)/);
+          if (match) benchmark.components = match[2].trim();
         }
-        if (line.includes('Edges per second:')) {
-          const match = line.match(/Edges per second:\s*(.+)/);
-          if (match) benchmark.edgesPerSec = match[1].trim();
+        if (line.includes('Largest component size:')) {
+          const match = line.match(/Largest component size:\s*(\d+)/);
+          if (match) benchmark.largestComponent = match[1].trim();
         }
       }
       
@@ -513,24 +620,20 @@
         items.push({ label: 'Total Time', value: benchmark.totalTime });
       }
       
-      if (benchmark.sortingTime) {
-        items.push({ label: 'Sorting Time', value: benchmark.sortingTime });
-      }
-      
-      if (benchmark.operations) {
-        items.push({ label: 'Operations', value: benchmark.operations });
-      }
-      
-      if (benchmark.operationsPerSec) {
-        items.push({ label: 'Ops/Second', value: benchmark.operationsPerSec });
+      if (benchmark.verticesProcessed) {
+        items.push({ label: 'Vertices Processed', value: benchmark.verticesProcessed });
       }
       
       if (benchmark.edgesProcessed) {
         items.push({ label: 'Edges Processed', value: benchmark.edgesProcessed });
       }
       
-      if (benchmark.edgesPerSec) {
-        items.push({ label: 'Edges/Second', value: benchmark.edgesPerSec });
+      if (benchmark.verticesPerSec) {
+        items.push({ label: 'Vertices/Second', value: benchmark.verticesPerSec });
+      }
+      
+      if (benchmark.components) {
+        items.push({ label: 'Components Found', value: benchmark.components });
       }
       
       items.forEach(item => {
@@ -586,7 +689,7 @@
         else if (timeStr.includes('s') && !timeStr.includes('ms')) timeValue *= 1000;
         
         const percentage = (timeValue / maxTime) * 100;
-        const width = Math.max(percentage, 10); // Minimum width for visibility
+        const width = Math.max(percentage, 10); // min width for visibility
         
         const barDiv = document.createElement('div');
         barDiv.className = 'chart-bar';
@@ -735,33 +838,26 @@
         }
 
         document.getElementById('algorithmButtons').style.display = 'flex';
+        document.getElementById('parallelControls').style.display = 'block';
+        document.getElementById('compareSection').style.display = 'block';
         
         const floydBtn = document.getElementById('floydBtn');
-        const kruskalBtn = document.getElementById('kruskalBtn');
-        
-        // Floyd-Warshall works with any graph but needs matrix representation
-        floydBtn.disabled = false;
-        
-        // Kruskal works only with undirected graphs
-        kruskalBtn.disabled = requestBody.is_directed;
-        if (requestBody.is_directed) {
-          kruskalBtn.title = "Kruskal's algorithm works only with undirected graphs";
-        } else {
-          kruskalBtn.title = "";
-        }
+        const componentsBtn = document.getElementById('componentsBtn');
+        const floydParallelBtn = document.getElementById('floydParallelBtn');
+        const componentsParallelBtn = document.getElementById('componentsParallelBtn');
 
+        // both floyd-warshall and connected components work with any graph / if there were kruskal or prim algorithms, they would only work with connected graphs
+        floydBtn.disabled = false;
+        floydParallelBtn.disabled = false;
+        
+        componentsBtn.disabled = false;
+        componentsParallelBtn.disabled = false;
       } catch (err) {
         output.className = 'error';
-        output.textContent = 'Request error: ' + err.message;
+        output.textContent = 'Error generating graph: ' + err.message;
       } finally {
-        if (generateBtn) {
-          generateBtn.disabled = false;
-          generateBtn.textContent = 'Generate Random Graph';
-        }
-        if (createBtn) {
-          createBtn.disabled = false;
-          createBtn.textContent = 'Create Custom Graph';
-        }
+        if (generateBtn) generateBtn.disabled = false;
+        if (createBtn) createBtn.disabled = false;
       }
     }
 
@@ -816,7 +912,7 @@
         const endTime = performance.now();
         const clientTime = endTime - startTime;
         
-        // Extract benchmark data and display
+        // extract benchmark data and display
         const benchmark = extractBenchmarkData(data.result);
         const numVert = requestData.matrix.length;
         const complexity = `O(V³) = O(${numVert}³)`;
@@ -838,16 +934,16 @@
       }
     }
 
-    async function runKruskal() {
+    async function runConnectedComponents() {
       if (!currentGraphData) {
         alert('Please generate a graph first');
         return;
       }
 
-      const kruskalBtn = document.getElementById('kruskalBtn');
-      const originalText = kruskalBtn.textContent;
-      kruskalBtn.disabled = true;
-      kruskalBtn.textContent = 'Running...';
+      const btn = document.getElementById('componentsBtn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Running...';
 
       const startTime = performance.now();
 
@@ -860,7 +956,7 @@
           requestData.matrix = currentGraphData.matrix;
         }
 
-        const response = await fetch('/kruskal', {
+        const response = await fetch('/connected_components', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestData)
@@ -877,12 +973,16 @@
         
         const benchmark = extractBenchmarkData(data.result);
         
+        let numVertices = 0;
         let numEdges = 0;
+        
         if (currentGraphData.adjList) {
-          numEdges = currentGraphData.adjList.reduce((total, adj) => total + adj.length, 0) / 2; // Divide by 2 for undirected
+          numVertices = currentGraphData.adjList.length;
+          numEdges = currentGraphData.adjList.reduce((total, adj) => total + adj.length, 0);
         } else if (currentGraphData.matrix) {
+          numVertices = currentGraphData.matrix.length;
           for (let i = 0; i < currentGraphData.matrix.length; i++) {
-            for (let j = i + 1; j < currentGraphData.matrix[i].length; j++) {
+            for (let j = 0; j < currentGraphData.matrix[i].length; j++) {
               if (currentGraphData.matrix[i][j] !== null) {
                 numEdges++;
               }
@@ -890,9 +990,9 @@
           }
         }
         
-        const complexity = `O(E log E) = O(${numEdges} log ${numEdges})`;
+        const complexity = `O(V + E) = O(${numVertices} + ${numEdges})`;
         
-        displayBenchmark('Kruskal', benchmark, complexity);
+        displayBenchmark('Connected Components', benchmark, complexity);
         
         document.getElementById('algorithmResults').style.display = 'block';
         document.getElementById('algorithmOutput').textContent = data.result + 
@@ -902,10 +1002,226 @@
       } catch (err) {
         document.getElementById('algorithmResults').style.display = 'block';
         document.getElementById('algorithmOutput').className = 'error';
-        document.getElementById('algorithmOutput').textContent = 'Error running Kruskal: ' + err.message;
+        document.getElementById('algorithmOutput').textContent = 'Error running Connected Components: ' + err.message;
       } finally {
-        kruskalBtn.disabled = false;
-        kruskalBtn.textContent = originalText;
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    // parallel floyd-warshall
+    async function runFloydParallel() {
+      if (!currentGraphData) {
+        alert('Please generate a graph first');
+        return;
+      }
+
+      const btn = document.getElementById('floydParallelBtn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Running Parallel...';
+
+      const startTime = performance.now();
+
+      try {
+        let requestData = {};
+        
+        if (currentGraphData.matrix) {
+          requestData.matrix = currentGraphData.matrix;
+        } else if (currentGraphData.adjList) {
+          const numVert = currentGraphData.adjList.length;
+          const matrix = Array(numVert).fill().map(() => Array(numVert).fill(null));
+          
+          for (let i = 0; i < numVert; i++) {
+            matrix[i][i] = 0;
+          }
+          
+          currentGraphData.adjList.forEach((adj, i) => {
+            adj.forEach(edge => {
+              matrix[i][edge.to] = edge.weight;
+            });
+          });
+          
+          requestData.matrix = matrix;
+        }
+
+        requestData.num_threads = parseInt(document.getElementById('numThreads').value) || 4;
+
+        const response = await fetch('/floyd_parallel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const data = await response.json();
+        const endTime = performance.now();
+        const clientTime = endTime - startTime;
+        
+        const benchmark = extractBenchmarkData(data.result);
+        const numVert = requestData.matrix.length;
+        const complexity = `O(V³/P) = O(${numVert}³/${requestData.num_threads})`;
+        
+        displayBenchmark('Parallel Floyd-Warshall', benchmark, complexity);
+        
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').textContent = data.result + 
+          `\nClient-side total time: ${formatTime(clientTime)}`;
+        document.getElementById('algorithmOutput').className = '';
+
+      } catch (err) {
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').className = 'error';
+        document.getElementById('algorithmOutput').textContent = 'Error running Parallel Floyd-Warshall: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    // parallel connected components
+    async function runConnectedComponentsParallel() {
+      if (!currentGraphData) {
+        alert('Please generate a graph first');
+        return;
+      }
+
+      const btn = document.getElementById('componentsParallelBtn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Running Parallel...';
+
+      const startTime = performance.now();
+
+      try {
+        let requestData = {};
+        
+        if (currentGraphData.adjList) {
+          requestData.adjList = currentGraphData.adjList;
+        } else if (currentGraphData.matrix) {
+          requestData.matrix = currentGraphData.matrix;
+        }
+
+        requestData.num_threads = parseInt(document.getElementById('numThreads').value) || 4;
+
+        const response = await fetch('/connected_components_parallel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const data = await response.json();
+        const endTime = performance.now();
+        const clientTime = endTime - startTime;
+        
+        const benchmark = extractBenchmarkData(data.result);
+        
+        let numVertices = 0;
+        let numEdges = 0;
+        
+        if (currentGraphData.adjList) {
+          numVertices = currentGraphData.adjList.length;
+          numEdges = currentGraphData.adjList.reduce((total, adj) => total + adj.length, 0);
+        } else if (currentGraphData.matrix) {
+          numVertices = currentGraphData.matrix.length;
+          for (let i = 0; i < currentGraphData.matrix.length; i++) {
+            for (let j = 0; j < currentGraphData.matrix[i].length; j++) {
+              if (currentGraphData.matrix[i][j] !== null) {
+                numEdges++;
+              }
+            }
+          }
+        }
+        
+        const complexity = `O((V + E)/P) = O((${numVertices} + ${numEdges})/${requestData.num_threads})`;
+        
+        displayBenchmark('Parallel Connected Components', benchmark, complexity);
+        
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').textContent = data.result + 
+          `\nClient-side total time: ${formatTime(clientTime)}`;
+        document.getElementById('algorithmOutput').className = '';
+
+      } catch (err) {
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').className = 'error';
+        document.getElementById('algorithmOutput').textContent = 'Error running Parallel Connected Components: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    // sequential vs parallel comparison
+    async function runComparison() {
+      if (!currentGraphData) {
+        alert('Please generate a graph first');
+        return;
+      }
+
+      const btn = document.getElementById('compareBtn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '🔄 Running Comparison...';
+
+      const startTime = performance.now();
+
+      try {
+        let requestData = {};
+        
+        if (currentGraphData.matrix) {
+          requestData.matrix = currentGraphData.matrix;
+        } else if (currentGraphData.adjList) {
+          requestData.adjList = currentGraphData.adjList;
+        }
+
+        requestData.num_threads = parseInt(document.getElementById('numThreads').value) || 4;
+
+        const response = await fetch('/compare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const data = await response.json();
+        const endTime = performance.now();
+        const clientTime = endTime - startTime;
+        
+        // show comparison results
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').textContent = 
+          data.comparison + '\n\n' + 
+          'DETAILED RESULTS:\n' + 
+          '==================\n\n' + 
+          data.detailed_results + 
+          `\n\nClient-side total time: ${formatTime(clientTime)}`;
+        document.getElementById('algorithmOutput').className = '';
+        
+        // hide benchmark panel for comparison
+        document.getElementById('benchmarkPanel').style.display = 'none';
+        document.getElementById('algorithmComplexity').innerHTML = '<span class="complexity-badge">Performance Comparison</span>';
+
+      } catch (err) {
+        document.getElementById('algorithmResults').style.display = 'block';
+        document.getElementById('algorithmOutput').className = 'error';
+        document.getElementById('algorithmOutput').textContent = 'Error running comparison: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     }
 
